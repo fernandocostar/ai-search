@@ -1,59 +1,101 @@
-def check_heuristic(sorted_by_influence, k):
-    return sum(sorted_by_influence[:k])*0.8
+import networkx as nx
+import random
+from operator import itemgetter
+from typing import List, Set, NamedTuple, Callable
 
-def check_kest(matrix, k, origin, visited): #olha os k maiores nao visitados de um vertice origem e retorna um valor de heuristica
-    sorted_by_influence = [(i, matrix[i][-1]) for i in range(len(matrix[origin])-1)].sort(key=lambda x: x[1], reverse=True) #array de tuplas com o vizinho e a soma do vizinho
-    k_biggest = []
-    i = 0
-    while(len(k_biggest) != k and i < len(matrix[i])-1):
-        if not visited[sorted_by_influence[i][0]]:
-            k_biggest.append(sorted_by_influence[i])
-        i += 1
-    return k_biggest, check_heuristic(sorted_by_influence, k)
+N_RESULTS = 6
+THRESHOLD = 0.2
 
-def heuristic_test(actual, maximum):
-    return 1 if actual >= maximum*0.2 else 0
+#special type containing the node id and its calculated heuristic
+class NodeInfo(NamedTuple):
+    id: int
+    heuristic_val: float
 
-def rosseti_searchUtil(matrix, visited, origin, k, max_heuristic, result):
-    if visited[origin]:
-        return
-    visited[origin] = 1
-    k_biggest, result_heuristic = check_kest(matrix, k, origin, visited)
-    if heuristic_test(result_heuristic, max_heuristic):
-        for each in k_biggest:
-            if result[-1][1] < each[1]:
-                result.pop(-1)
-                result.append(each)
-                result.sort(key=lambda x: x[1], reverse=True) #podia ser uma min heap
-        if result_heuristic > max_heuristic:
-            max_heuristic = result_heuristic
-        while(len(k_biggest)):
-            for each in k_biggest:
-                rosseti_searchUtil(matrix, visited, each[0], k, max_heuristic, result)
-    return
+ #returns the calculated heuristic of a given node
+def calc_heuristic(graph: nx.Graph, node: int) -> float:
+    node_degree = graph.degree(node)
+    heuristic_value = node_degree
+    for neighbor in graph.neighbors(node):
+        heuristic_value += graph.degree(neighbor) * 0.8
+    return heuristic_value
 
-def rosseti_search(matrix, k):
-    result = []
-    visited = [0]*len(matrix)
-    matrix = matrix.sort(key=lambda x: x[-1], reverse=True)
-    rosseti_searchUtil(matrix, visited, matrix[0][0], k, check_kest(matrix, k, 0, visited)[1], result)
-    for each in result:
-        print("Node:", each[0], "Connections:", each[1])
-    return
+#cutoff function so you dont have to look up all the edges on search (using the biggest neighbors heuristic-based)
+def get_k_neighbors_with_biggest_heuristic(graph: nx.Graph,
+                                           nodes: Set[int],
+                                           k: int,
+                                           visited: Set[int]) -> List[NodeInfo]:
+    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in nodes - visited]
+    ids_and_heuristic.sort(key=itemgetter(1), reverse=True)
+    return ids_and_heuristic[:k]
 
-def main(max_population, k):
+#cutoff function so you dont have to look up all the edges on search (using a random criteria)
+def get_sample_of_neighbors(graph: nx.Graph,
+                            nodes: Set[int],
+                            k: int,
+                            visited: Set[int]) -> List[NodeInfo]:
+    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in nodes - visited]
+    return random.sample(ids_and_heuristic, k)
 
-    adj_list = [[i] for i in range(max_population + 1)]
+#updates the frontier structure with biggest found yet
+def update_most_influential(cur_list: List[NodeInfo], new_elems: List[NodeInfo]):
+    for elem in new_elems:
+        if elem.heuristic_val > cur_list[-1].heuristic_val:
+            cur_list[-1] = elem
+            cur_list.sort(key=itemgetter(1), reverse=True)
 
-    with open("facebook_combined.txt", "r") as file:
+#search function \o/
+def search(graph: nx.Graph,
+           origin_node: int,
+           k_most_influential: List[NodeInfo],  # That times cover was just confirmation
+           k: int,
+           neighbors_selection_function: Callable):
 
+    visited: Set[int] = {origin_node} #to check the visited nodes
+    origin_node_neighbors: Set[int] = set(graph.neighbors(origin_node)) #get the ALL neighbors of the origin node 
+    next_nodes: List[NodeInfo] = neighbors_selection_function(graph, origin_node_neighbors, k, visited) #creates a list of the next nodes to look up based on the cutoff function chosen
+    visited.union(origin_node_neighbors) #make ALL the origin node neighbors visited (may be changed by visit only the chosen ones)
+
+    while True: #dfs loop starts
+        all_neighbor_ids: Set[int] = set() #holds all the neighbors ids checked until now
+
+        for neighbor in next_nodes: #limited bfs looking only one layer around
+            all_neighbor_ids = all_neighbor_ids.union(graph.neighbors(neighbor[0])) #update neighbors
+
+        next_nodes = neighbors_selection_function(graph, all_neighbor_ids, k, visited) #update neighbors based on cutoff function
+
+        update_most_influential(k_most_influential, next_nodes) #update the structure containing the result
+
+        if next_nodes[0].heuristic_val < k_most_influential[0].heuristic_val * THRESHOLD: #limits dfs by heuristic
+            break
+
+        visited = visited.union(all_neighbor_ids) #visit neighbors so we dont need to look again
+
+
+if __name__ == '__main__':
+    G = nx.Graph()
+    with open('facebook_combined.txt', 'r') as file:
         for line in file:
-            origin, destiny = map(int, line.split(" "))
-            adj_list[origin].append(str(destiny))
-            adj_list[destiny].append(str(origin))
+            G.add_edge(*map(int, line.split()))
 
-        [each.append(len(each)) for each in adj_list]
+    node_with_most_neighbors = max(dict(G.degree).items(), key=itemgetter(1))
 
-    rosseti_search(adj_list, k)
+    k_most_influential: List[NodeInfo] = [NodeInfo(node_with_most_neighbors[0],
+                                                   calc_heuristic(G, node_with_most_neighbors[0]))]
 
-main(4039, 10)
+    for _ in range(N_RESULTS - 1):
+        k_most_influential.append(NodeInfo(0, -999))
+
+    search(G, node_with_most_neighbors[0], k_most_influential, 15, get_k_neighbors_with_biggest_heuristic)
+
+    print("Search using K biggest")
+    print(k_most_influential)
+
+    k_most_influential: List[NodeInfo] = [NodeInfo(node_with_most_neighbors[0],
+                                                   calc_heuristic(G, node_with_most_neighbors[0]))]
+
+    for _ in range(N_RESULTS - 1):
+        k_most_influential.append(NodeInfo(0, -999))
+
+    search(G, node_with_most_neighbors[0], k_most_influential, 50, get_sample_of_neighbors)
+    print("Search using K random")
+    print(k_most_influential)
