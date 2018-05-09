@@ -3,9 +3,9 @@ import random
 from operator import itemgetter
 from typing import List, Set, NamedTuple, Callable
 
-N_RESULTS = 6
+N_RESULTS = 8
 THRESHOLD = 0.2
-K = 20
+K = 8
 
 # special type containing the node id and its calculated heuristic
 class NodeInfo(NamedTuple):
@@ -25,7 +25,7 @@ def get_k_neighbors_with_biggest_heuristic(graph: nx.Graph,
                                            nodes: Set[int],
                                            k: int,
                                            visited: Set[int]) -> List[NodeInfo]:
-    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in nodes - visited]
+    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in (nodes - visited)]
     ids_and_heuristic.sort(key=itemgetter(1), reverse=True)
     return ids_and_heuristic[:k]
 
@@ -34,7 +34,7 @@ def get_sample_of_neighbors(graph: nx.Graph,
                             nodes: Set[int],
                             k: int,
                             visited: Set[int]) -> List[NodeInfo]:
-    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in nodes - visited]
+    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in (nodes - visited)]
     return random.sample(ids_and_heuristic, k)
 
 # updates the frontier structure with biggest found yet
@@ -54,7 +54,7 @@ def search(graph: nx.Graph,
     visited: Set[int] = {origin_node}  # to check the visited nodes
     origin_node_neighbors: Set[int] = set(graph.neighbors(origin_node)) #get the ALL neighbors of the origin node 
     next_nodes: List[NodeInfo] = neighbors_selection_function(graph, origin_node_neighbors, k, visited)  # creates a list of the next nodes to look up based on the cutoff function chosen
-    visited.union(origin_node_neighbors)  # make ALL the origin node neighbors visited (may be changed by visit only the chosen ones)
+    visited = visited.union(origin_node_neighbors)  # make ALL the origin node neighbors visited (may be changed by visit only the chosen ones)
 
     while True:  # dfs loop starts
         all_neighbor_ids: Set[int] = set()  # holds all the neighbors ids checked until now
