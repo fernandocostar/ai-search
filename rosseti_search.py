@@ -5,6 +5,7 @@ from typing import List, Set, NamedTuple, Callable
 
 N_RESULTS = 6
 THRESHOLD = 0.2
+K = 20
 
 # special type containing the node id and its calculated heuristic
 class NodeInfo(NamedTuple):
@@ -92,12 +93,12 @@ def search(graph: nx.Graph,
 
 
 def count_visits(graph: nx.Graph, node: int) -> int:
-    visited: Set[int] = {node}
+    visited: Set[int] = set([node])
     next_neighbors: Set[int] = set(graph.neighbors(node))
 
     while len(next_neighbors) > 0:
         visited = visited.union(next_neighbors)
-        the_next: Set = {}
+        the_next: Set = set()
         for node in next_neighbors:
             the_next = the_next.union(graph.neighbors(node))
         next_neighbors = the_next - visited
@@ -106,6 +107,7 @@ def count_visits(graph: nx.Graph, node: int) -> int:
 
 
 if __name__ == '__main__':
+    print("K =", K)
     G = nx.Graph()
     with open('facebook_combined.txt', 'r') as file:
         for line in file:
@@ -119,10 +121,13 @@ if __name__ == '__main__':
     for _ in range(N_RESULTS - 1):
         k_most_influential.append(NodeInfo(0, -999))
 
-    search(G, node_with_most_neighbors[0], k_most_influential, 15, get_k_neighbors_with_biggest_heuristic)
+    search(G, node_with_most_neighbors[0], k_most_influential, K, get_k_neighbors_with_biggest_heuristic)
 
     print("Search using K biggest")
     print(k_most_influential)
+
+    for info in k_most_influential:
+        print(info.id, count_visits(G, info.id))
 
     k_most_influential: List[NodeInfo] = [NodeInfo(node_with_most_neighbors[0],
                                                    calc_heuristic(G, node_with_most_neighbors[0]))]
@@ -130,6 +135,8 @@ if __name__ == '__main__':
     for _ in range(N_RESULTS - 1):
         k_most_influential.append(NodeInfo(0, -999))
 
-    search(G, node_with_most_neighbors[0], k_most_influential, 50, get_sample_of_neighbors)
+    search(G, node_with_most_neighbors[0], k_most_influential, K, get_sample_of_neighbors)
     print("Search using K random")
     print(k_most_influential)
+    for info in k_most_influential:
+        print(info.id, count_visits(G, info.id))
