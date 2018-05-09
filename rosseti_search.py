@@ -35,7 +35,7 @@ def get_sample_of_neighbors(graph: nx.Graph,
                             k: int,
                             visited: Set[int]) -> List[NodeInfo]:
     ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in (nodes - visited)]
-    return random.sample(ids_and_heuristic, k)
+    return random.sample(ids_and_heuristic, min(k, len(ids_and_heuristic)))
 
 # updates the frontier structure with biggest found yet
 def update_most_influential(cur_list: List[NodeInfo], new_elems: List[NodeInfo]):
@@ -66,30 +66,12 @@ def search(graph: nx.Graph,
 
         update_most_influential(k_most_influential, next_nodes)  # update the structure containing the result
 
+        if not len(next_nodes):
+            break
         if next_nodes[0].heuristic_val < k_most_influential[0].heuristic_val * THRESHOLD:  # limits dfs by heuristic
             break
 
         visited = visited.union(all_neighbor_ids)  # visit neighbors so we dont need to look again
-
-    visited: Set[int] = {origin_node}
-    origin_node_neighbors: Set[int] = set(graph.neighbors(origin_node))
-    next_nodes: List[NodeInfo] = get_k_neighbors_with_biggest_heuristic(graph, origin_node_neighbors, k, visited)
-    visited.union(origin_node_neighbors)
-
-    while True:
-        all_neighbor_ids: Set[int] = set()
-
-        for neighbor in next_nodes:
-            all_neighbor_ids = all_neighbor_ids.union(graph.neighbors(neighbor[0]))
-
-        next_nodes = neighbors_selection_function(graph, all_neighbor_ids, k, visited)
-
-        update_most_influential(k_most_influential, next_nodes)
-
-        if next_nodes[0].heuristic_val < k_most_influential[0].heuristic_val * THRESHOLD:
-            break
-
-        visited = visited.union(all_neighbor_ids)
 
 
 def count_visits(graph: nx.Graph, node: int) -> int:
