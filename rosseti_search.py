@@ -5,7 +5,7 @@ from typing import List, Set, NamedTuple, Callable
 
 N_RESULTS = 8
 THRESHOLD = 0.2
-K = 8
+K = 6
 
 # special type containing the node id and its calculated heuristic
 class NodeInfo(NamedTuple):
@@ -25,7 +25,7 @@ def get_k_neighbors_with_biggest_heuristic(graph: nx.Graph,
                                            nodes: Set[int],
                                            k: int,
                                            visited: Set[int]) -> List[NodeInfo]:
-    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in (nodes - visited)]
+    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in nodes - visited]
     ids_and_heuristic.sort(key=itemgetter(1), reverse=True)
     return ids_and_heuristic[:k]
 
@@ -34,7 +34,7 @@ def get_sample_of_neighbors(graph: nx.Graph,
                             nodes: Set[int],
                             k: int,
                             visited: Set[int]) -> List[NodeInfo]:
-    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in (nodes - visited)]
+    ids_and_heuristic: List[NodeInfo] = [NodeInfo(i, calc_heuristic(graph, i)) for i in nodes - visited]
     return random.sample(ids_and_heuristic, min(k, len(ids_and_heuristic)))
 
 # updates the frontier structure with biggest found yet
@@ -52,15 +52,14 @@ def search(graph: nx.Graph,
            neighbors_selection_function: Callable):
 
     visited: Set[int] = {origin_node}  # to check the visited nodes
-    origin_node_neighbors: Set[int] = set(graph.neighbors(origin_node)) #get the ALL neighbors of the origin node 
-    next_nodes: List[NodeInfo] = neighbors_selection_function(graph, origin_node_neighbors, k, visited)  # creates a list of the next nodes to look up based on the cutoff function chosen
-    visited = visited.union(origin_node_neighbors)  # make ALL the origin node neighbors visited (may be changed by visit only the chosen ones)
+    # creates a list of the next nodes to look up based on the cutoff function chosen
+    next_nodes: List[NodeInfo] = [NodeInfo(origin_node, calc_heuristic(graph, origin_node))]
 
     while True:  # dfs loop starts
         all_neighbor_ids: Set[int] = set()  # holds all the neighbors ids checked until now
 
         for neighbor in next_nodes:  # limited bfs looking only one layer around
-            all_neighbor_ids = all_neighbor_ids.union(graph.neighbors(neighbor[0])) #update neighbors
+            all_neighbor_ids = all_neighbor_ids.union(graph.neighbors(neighbor.id)) #update neighbors
 
         next_nodes = neighbors_selection_function(graph, all_neighbor_ids, k, visited)  # update neighbors based on cutoff function
 
@@ -75,7 +74,7 @@ def search(graph: nx.Graph,
 
 
 def count_visits(graph: nx.Graph, node: int) -> int:
-    visited: Set[int] = set([node])
+    visited: Set[int] = {node}
     next_neighbors: Set[int] = set(graph.neighbors(node))
 
     while len(next_neighbors) > 0:
